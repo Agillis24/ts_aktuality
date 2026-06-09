@@ -308,7 +308,11 @@
     const RSS_URL = 'https://www.tendersystems.cz/aktuality/feed';
     const PAGE_SIZE = 10;
     const FALLBACK_IMAGE = 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/ze-sv-ta-tender-systems-7_orig.png';
-    const ARTICLE_PREVIEW_PREFIX = 'https://image.thum.io/get/width/1200/noanimate/';
+    // Optional manual overrides: use article URL as key and your image URL as value.
+    const MANUAL_IMAGE_OVERRIDES = {
+      'https://www.tendersystems.cz/aktuality/tender-expres-prehled-novych-funkcionalit-pro-elektronicke-katalogy': 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/6347109b-a751-47fa-acc7-30a0a7ca4360_orig.png',
+      'https://www.tendersystems.cz/aktuality/on-line-workshop-zdarma-nakup-potravin-s-vyuzitim-elektronickych-katalogu': 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/3d14d431-2116-402d-8ea0-0c9526aeb856_orig.png'
+    };
 
     const statusEl = document.getElementById('status');
     const newsListEl = document.getElementById('newsList');
@@ -343,9 +347,9 @@
       return match ? match[1] : FALLBACK_IMAGE;
     }
 
-    function buildArticlePreviewImage(link, rssImage) {
-      if (!link) return rssImage || FALLBACK_IMAGE;
-      return ARTICLE_PREVIEW_PREFIX + link;
+    function getManualImageOverride(link) {
+      if (!link) return '';
+      return MANUAL_IMAGE_OVERRIDES[link] || '';
     }
 
     function extractText(item) {
@@ -368,12 +372,13 @@
     function normalizeItem(item) {
       const link = item.link || 'https://www.tendersystems.cz/aktuality';
       const rssImage = extractImage(item);
+      const manualImage = getManualImageOverride(link);
       return {
         title: decodeHtmlEntities(item.title || 'Bez názvu'),
         link,
         date: formatDate(item.pubDate || item.published || item.isoDate),
         excerpt: extractText(item),
-        image: buildArticlePreviewImage(link, rssImage)
+        image: manualImage || rssImage || FALLBACK_IMAGE
       };
     }
 
