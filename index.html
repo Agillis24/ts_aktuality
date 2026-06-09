@@ -308,8 +308,7 @@
     const RSS_URL = 'https://www.tendersystems.cz/aktuality/feed';
     const PAGE_SIZE = 10;
     const FALLBACK_IMAGE = 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/ze-sv-ta-tender-systems-7_orig.png';
-    const ARTICLE_PROXY = 'https://api.allorigins.win/raw?url=';
-    const ARTICLE_PROXY_FALLBACK = 'https://r.jina.ai/http://';
+    const ARTICLE_PREVIEW_PREFIX = 'https://image.thum.io/get/width/1200/noanimate/';
 
     const statusEl = document.getElementById('status');
     const newsListEl = document.getElementById('newsList');
@@ -317,7 +316,6 @@
 
     let allItems = [];
     let currentPage = 1;
-    const imageLookupCache = new Map();
 
     function decodeHtmlEntities(str) {
       const txt = document.createElement('textarea');
@@ -345,87 +343,9 @@
       return match ? match[1] : FALLBACK_IMAGE;
     }
 
-    function extractImageFromArticleHtml(html) {
-      const safeHtml = html || '';
-
-      const ogMatch = safeHtml.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-        || safeHtml.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-      if (ogMatch && ogMatch[1]) return ogMatch[1];
-
-      const imgMatch = safeHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
-      return imgMatch ? imgMatch[1] : '';
-    }
-
-    function extractImageFromArticleText(text) {
-      const safeText = text || '';
-      const markdownMatch = safeText.match(/!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/i);
-      if (markdownMatch && markdownMatch[1]) return markdownMatch[1];
-
-      const genericMatch = safeText.match(/https?:\/\/[^\s)]+\.(?:png|jpe?g|webp|gif)(?:\?[^\s)]*)?/i);
-      return genericMatch ? genericMatch[0] : '';
-    }
-
-    function buildArticleSources(link) {
-      const normalizedLink = (link || '').replace(/^https?:\/\//i, '');
-      return [
-        {
-          url: ARTICLE_PROXY + encodeURIComponent(link),
-          parser: extractImageFromArticleHtml
-        },
-        {
-          url: ARTICLE_PROXY_FALLBACK + normalizedLink,
-          parser: extractImageFromArticleText
-        }
-      ];
-    }
-
-    async function fetchWithTimeout(url, timeoutMs = 9000) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-      try {
-        return await fetch(url, { signal: controller.signal });
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    }
-
-    async function resolveImageFromArticle(link) {
-      if (!link) return '';
-
-      if (imageLookupCache.has(link)) {
-        return imageLookupCache.get(link);
-      }
-
-      const fetchPromise = (async () => {
-        for (let attempt = 0; attempt < 3; attempt++) {
-          const sources = buildArticleSources(link);
-
-          for (const source of sources) {
-            try {
-              const response = await fetchWithTimeout(source.url);
-              if (!response.ok) continue;
-
-              const body = await response.text();
-              const image = source.parser(body);
-              if (image) return image;
-            } catch (error) {
-              // Retry transient proxy/network failures.
-            }
-          }
-
-          if (attempt < 2) {
-            await new Promise(resolve => setTimeout(resolve, 600 * (attempt + 1)));
-          }
-        }
-
-        return '';
-      })();
-
-      imageLookupCache.set(link, fetchPromise);
-      const resolvedImage = await fetchPromise;
-      imageLookupCache.set(link, resolvedImage || '');
-      return resolvedImage;
+    function buildArticlePreviewImage(link, rssImage) {
+      if (!link) return rssImage || FALLBACK_IMAGE;
+      return ARTICLE_PREVIEW_PREFIX + link;
     }
 
     function extractText(item) {
@@ -446,39 +366,15 @@
     }
 
     function normalizeItem(item) {
+      const link = item.link || 'https://www.tendersystems.cz/aktuality';
+      const rssImage = extractImage(item);
       return {
         title: decodeHtmlEntities(item.title || 'Bez názvu'),
-        link: item.link || 'https://www.tendersystems.cz/aktuality',
+        link,
         date: formatDate(item.pubDate || item.published || item.isoDate),
         excerpt: extractText(item),
-        image: extractImage(item),
-        imageResolved: false
+        image: buildArticlePreviewImage(link, rssImage)
       };
-    }
-
-    async function refreshVisibleCardImages(items, start) {
-      const pageAtRender = currentPage;
-
-      const tasks = items.map(async (item, offset) => {
-        if (item.imageResolved) return;
-
-        const resolvedImage = await resolveImageFromArticle(item.link);
-        item.imageResolved = true;
-        if (!resolvedImage || resolvedImage === item.image) return;
-
-        item.image = resolvedImage;
-
-        if (currentPage !== pageAtRender) return;
-
-        const absoluteIndex = start + offset;
-        const imgEl = newsListEl.querySelector(`img[data-item-index="${absoluteIndex}"]`);
-        if (imgEl) {
-          imgEl.src = item.image;
-        }
-      });
-
-      await Promise.allSettled(tasks);
-      adjustIframeHeight();
     }
 
     function renderPage(page) {
@@ -487,10 +383,10 @@
       const start = (page - 1) * PAGE_SIZE;
       const items = allItems.slice(start, start + PAGE_SIZE);
 
-      newsListEl.innerHTML = items.map((item, idx) => `
+      newsListEl.innerHTML = items.map(item => `
         <article class="card">
           <a class="card__media" href="${item.link}" target="_blank" rel="noopener noreferrer" aria-label="Otevřít článek ${item.title}">
-            <img data-item-index="${start + idx}" src="${item.image}" alt="Náhled článku ${item.title}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}'">
+            <img src="${item.image}" alt="Náhled článku ${item.title}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}'">
           </a>
           <div class="card__body">
             <div class="card__date">${item.date}</div>
@@ -505,7 +401,6 @@
       `).join('');
 
       renderPagination(totalPages);
-      refreshVisibleCardImages(items, start);
       statusEl.style.display = allItems.length ? 'none' : 'block';
       adjustIframeHeight();
     }
