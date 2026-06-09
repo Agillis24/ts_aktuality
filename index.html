@@ -426,11 +426,54 @@
       });
     }
 
-    function adjustIframeHeight() {
-      const height = document.documentElement.scrollHeight;
+    let lastReportedHeight = 0;
+
+    function getDocumentHeight() {
+      return Math.max(
+        document.body ? document.body.scrollHeight : 0,
+        document.documentElement ? document.documentElement.scrollHeight : 0,
+        document.body ? document.body.offsetHeight : 0,
+        document.documentElement ? document.documentElement.offsetHeight : 0,
+        document.body ? document.body.clientHeight : 0,
+        document.documentElement ? document.documentElement.clientHeight : 0
+      );
+    }
+
+    function adjustIframeHeight(force = false) {
+      const height = getDocumentHeight();
+      if (!force && Math.abs(height - lastReportedHeight) < 2) return;
+      lastReportedHeight = height;
+
       if (window.parent !== window) {
         window.parent.postMessage({ type: 'tendersystems-widget-height', height }, '*');
       }
+    }
+
+    function setupIframeAutoHeight() {
+      if (window.parent === window) return;
+
+      const schedule = () => requestAnimationFrame(() => adjustIframeHeight());
+
+      // Reacts to responsive reflow and viewport changes.
+      window.addEventListener('resize', schedule);
+      window.addEventListener('orientationchange', schedule);
+
+      // Reacts to dynamic content changes (rendering, pagination, text clamp changes).
+      if (typeof MutationObserver !== 'undefined') {
+        const mo = new MutationObserver(schedule);
+        mo.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
+      }
+
+      // Reacts to late image loads that can change layout height.
+      document.addEventListener('load', function(e) {
+        if (e.target && e.target.tagName === 'IMG') schedule();
+      }, true);
+
+      // Initial sync and a few delayed syncs for browser/layout lag.
+      adjustIframeHeight(true);
+      setTimeout(() => adjustIframeHeight(true), 80);
+      setTimeout(() => adjustIframeHeight(true), 250);
+      setTimeout(() => adjustIframeHeight(true), 700);
     }
 
     async function loadFeed() {
@@ -459,8 +502,10 @@
       }
     }
 
-    window.addEventListener('load', loadFeed);
-    window.addEventListener('resize', adjustIframeHeight);
+    window.addEventListener('load', () => {
+      setupIframeAutoHeight();
+      loadFeed();
+    });
   </script>
 </body>
 </html>
