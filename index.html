@@ -309,6 +309,7 @@
     const PAGE_SIZE = 10;
     const FALLBACK_IMAGE = 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/ze-sv-ta-tender-systems-7_orig.png';
     const ARTICLE_PROXY = 'https://api.allorigins.win/raw?url=';
+    const ARTICLE_PROXY_FALLBACK = 'https://r.jina.ai/http://';
 
     const statusEl = document.getElementById('status');
     const newsListEl = document.getElementById('newsList');
@@ -345,8 +346,37 @@
     }
 
     function extractImageFromArticleHtml(html) {
-      const match = (html || '').match(/<img[^>]+src=["']([^"']+)["']/i);
-      return match ? match[1] : '';
+      const safeHtml = html || '';
+
+      const ogMatch = safeHtml.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+        || safeHtml.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+      if (ogMatch && ogMatch[1]) return ogMatch[1];
+
+      const imgMatch = safeHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
+      return imgMatch ? imgMatch[1] : '';
+    }
+
+    function extractImageFromArticleText(text) {
+      const safeText = text || '';
+      const markdownMatch = safeText.match(/!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/i);
+      if (markdownMatch && markdownMatch[1]) return markdownMatch[1];
+
+      const genericMatch = safeText.match(/https?:\/\/[^\s)]+\.(?:png|jpe?g|webp|gif)(?:\?[^\s)]*)?/i);
+      return genericMatch ? genericMatch[0] : '';
+    }
+
+    function buildArticleSources(link) {
+      const normalizedLink = (link || '').replace(/^https?:\/\//i, '');
+      return [
+        {
+          url: ARTICLE_PROXY + encodeURIComponent(link),
+          parser: extractImageFromArticleHtml
+        },
+        {
+          url: ARTICLE_PROXY_FALLBACK + normalizedLink,
+          parser: extractImageFromArticleText
+        }
+      ];
     }
 
     async function fetchWithTimeout(url, timeoutMs = 9000) {
@@ -369,15 +399,19 @@
 
       const fetchPromise = (async () => {
         for (let attempt = 0; attempt < 3; attempt++) {
-          try {
-            const response = await fetchWithTimeout(ARTICLE_PROXY + encodeURIComponent(link));
-            if (!response.ok) continue;
+          const sources = buildArticleSources(link);
 
-            const html = await response.text();
-            const image = extractImageFromArticleHtml(html);
-            if (image) return image;
-          } catch (error) {
-            // Retry transient proxy/network failures.
+          for (const source of sources) {
+            try {
+              const response = await fetchWithTimeout(source.url);
+              if (!response.ok) continue;
+
+              const body = await response.text();
+              const image = source.parser(body);
+              if (image) return image;
+            } catch (error) {
+              // Retry transient proxy/network failures.
+            }
           }
 
           if (attempt < 2) {
