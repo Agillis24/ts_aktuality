@@ -308,6 +308,7 @@
     const RSS_URL = 'https://www.tendersystems.cz/aktuality/feed';
     const PAGE_SIZE = 10;
     const FALLBACK_IMAGE = 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/ze-sv-ta-tender-systems-7_orig.png';
+    const ARTICLE_PROXY = 'https://api.allorigins.win/raw?url=';
 
     const statusEl = document.getElementById('status');
     const newsListEl = document.getElementById('newsList');
@@ -315,6 +316,7 @@
 
     let allItems = [];
     let currentPage = 1;
+    const imageLookupCache = new Map();
 
     function decodeHtmlEntities(str) {
       const txt = document.createElement('textarea');
@@ -342,6 +344,56 @@
       return match ? match[1] : FALLBACK_IMAGE;
     }
 
+    function extractImageFromArticleHtml(html) {
+      const match = (html || '').match(/<img[^>]+src=["']([^"']+)["']/i);
+      return match ? match[1] : '';
+    }
+
+    async function fetchWithTimeout(url, timeoutMs = 9000) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        return await fetch(url, { signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    async function resolveImageFromArticle(link) {
+      if (!link) return '';
+
+      if (imageLookupCache.has(link)) {
+        return imageLookupCache.get(link);
+      }
+
+      const fetchPromise = (async () => {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const response = await fetchWithTimeout(ARTICLE_PROXY + encodeURIComponent(link));
+            if (!response.ok) continue;
+
+            const html = await response.text();
+            const image = extractImageFromArticleHtml(html);
+            if (image) return image;
+          } catch (error) {
+            // Retry transient proxy/network failures.
+          }
+
+          if (attempt < 2) {
+            await new Promise(resolve => setTimeout(resolve, 600 * (attempt + 1)));
+          }
+        }
+
+        return '';
+      })();
+
+      imageLookupCache.set(link, fetchPromise);
+      const resolvedImage = await fetchPromise;
+      imageLookupCache.set(link, resolvedImage || '');
+      return resolvedImage;
+    }
+
     function extractText(item) {
       const encoded = item['content:encoded'] || item.content || '';
       const description = item.description || '';
@@ -365,8 +417,34 @@
         link: item.link || 'https://www.tendersystems.cz/aktuality',
         date: formatDate(item.pubDate || item.published || item.isoDate),
         excerpt: extractText(item),
-        image: extractImage(item)
+        image: extractImage(item),
+        imageResolved: false
       };
+    }
+
+    async function refreshVisibleCardImages(items, start) {
+      const pageAtRender = currentPage;
+
+      const tasks = items.map(async (item, offset) => {
+        if (item.imageResolved) return;
+
+        const resolvedImage = await resolveImageFromArticle(item.link);
+        item.imageResolved = true;
+        if (!resolvedImage || resolvedImage === item.image) return;
+
+        item.image = resolvedImage;
+
+        if (currentPage !== pageAtRender) return;
+
+        const absoluteIndex = start + offset;
+        const imgEl = newsListEl.querySelector(`img[data-item-index="${absoluteIndex}"]`);
+        if (imgEl) {
+          imgEl.src = item.image;
+        }
+      });
+
+      await Promise.allSettled(tasks);
+      adjustIframeHeight();
     }
 
     function renderPage(page) {
@@ -375,10 +453,10 @@
       const start = (page - 1) * PAGE_SIZE;
       const items = allItems.slice(start, start + PAGE_SIZE);
 
-      newsListEl.innerHTML = items.map(item => `
+      newsListEl.innerHTML = items.map((item, idx) => `
         <article class="card">
           <a class="card__media" href="${item.link}" target="_blank" rel="noopener noreferrer" aria-label="Otevřít článek ${item.title}">
-            <img src="${item.image}" alt="Náhled článku ${item.title}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}'">
+            <img data-item-index="${start + idx}" src="${item.image}" alt="Náhled článku ${item.title}" loading="lazy" onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}'">
           </a>
           <div class="card__body">
             <div class="card__date">${item.date}</div>
@@ -393,6 +471,7 @@
       `).join('');
 
       renderPagination(totalPages);
+      refreshVisibleCardImages(items, start);
       statusEl.style.display = allItems.length ? 'none' : 'block';
       adjustIframeHeight();
     }
@@ -478,7 +557,9 @@
 
     async function loadFeed() {
       try {
-        const endpoint = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(RSS_URL);
+        const separator = RSS_URL.includes('?') ? '&' : '?';
+        const cacheBustedRssUrl = `${RSS_URL}${separator}cb=${Date.now()}`;
+        const endpoint = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(cacheBustedRssUrl);
         const res = await fetch(endpoint);
         const data = await res.json();
 
