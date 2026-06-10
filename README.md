@@ -3,8 +3,8 @@
 Tento repozitář obsahuje jednoduchý HTML widget pro zobrazení novinek z RSS feedu:
 
 - RSS: `https://www.tendersystems.cz/aktuality/feed`
-- 1 novinka přes celou šířku řádku
-- obrázek, název, české datum a zkrácený text
+- 1 sloupec novinek pod sebou
+- název, české datum a zkrácený text bez obrázků
 - 10 novinek na stránku
 - stránkování
 
@@ -21,8 +21,10 @@ Tento repozitář obsahuje jednoduchý HTML widget pro zobrazení novinek z RSS 
 6. GitHub Pages vám vytvoří veřejnou URL ve tvaru:
 
 ```text
-https://UZIVATEL.github.io/NAZEV-REPA/
+https://agillis24.github.io/ts_aktuality/
 ```
+
+Pokud se vám zobrazuje 404, zkontrolujte ještě v repozitáři **Settings → Pages**, že je jako zdroj nastavená větev `main` a složka `/root`.
 
 ## Vložení do Weebly
 
@@ -31,7 +33,7 @@ Do prvku **Embed Code** ve Weebly vložte:
 ```html
 <iframe
   id="ts-novinky-widget"
-  src="https://UZIVATEL.github.io/NAZEV-REPA/"
+  src="https://agillis24.github.io/ts_aktuality/"
   title="Tender systems – novinky"
   width="100%"
   height="1200"
