@@ -137,6 +137,7 @@
       gap: 12px;
       flex-wrap: wrap;
       align-items: center;
+      justify-content: flex-end;
     }
 
     .btn {
@@ -150,7 +151,7 @@
       font-weight: 700;
       font-size: 14px;
       transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-      flex: 1 1 170px;
+      flex: 0 0 auto;
       white-space: nowrap;
     }
 
@@ -252,17 +253,12 @@
         -webkit-line-clamp: 4;
         min-height: calc(1.5em * 4);
       }
-      .btn {
-        flex: 1 1 150px;
-      }
+      .btn { min-height: 40px; }
     }
 
     @media (max-width: 460px) {
       .card__actions {
         gap: 10px;
-      }
-      .btn {
-        flex: 1 1 100%;
       }
       .pagination {
         gap: 8px;
