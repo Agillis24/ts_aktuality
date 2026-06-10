@@ -311,8 +311,36 @@
     // Optional manual overrides: use article URL as key and your image URL as value.
     const MANUAL_IMAGE_OVERRIDES = {
       'https://www.tendersystems.cz/aktuality/tender-expres-prehled-novych-funkcionalit-pro-elektronicke-katalogy': 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/6347109b-a751-47fa-acc7-30a0a7ca4360_orig.png',
-      'https://www.tendersystems.cz/aktuality/on-line-workshop-zdarma-nakup-potravin-s-vyuzitim-elektronickych-katalogu': 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/3d14d431-2116-402d-8ea0-0c9526aeb856_orig.png'
+      'https://www.tendersystems.cz/aktuality/on-line-workshop-zdarma-nakup-potravin-s-vyuzitim-elektronickych-katalogu': 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/3d14d431-2116-402d-8ea0-0c9526aeb856_orig.png',
+      'https://www.tendersystems.cz/aktuality/tender-arena-nove-prijima-nabidky-i-z-portalu-zakazky-gov': 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/e4a09d91-a0d2-4801-9509-556fca5f7c3d_orig.png',
+      'https://www.tendersystems.cz/aktuality/zakazky-gov-predstaveny-na-konferenci-isss-v-hradci-kralove': 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/cdb5897d-56ee-4910-b6bf-6078647a42a2_orig.png',
+      'https://www.tendersystems.cz/aktuality/pripravili-jsme-novy-e-learningovy-kurz-pro-novacky-v-roli-zadavatele': 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/a715b4ad-7ca3-47f9-8992-910b653bffcc_orig.png',
+      'https://www.tendersystems.cz/aktuality/objevte-kouzlo-nakupovani-s-e-katalogy': 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/4e54ab35-ab44-4c4e-8c95-cf2a00f127d2_orig.png',
+      'https://www.tendersystems.cz/aktuality/dulezite-zmena-prihlasovani-dodavatelu-od-10-4-2026': 'https://www.tendersystems.cz/uploads/6/4/0/7/64075341/e21f0c1d-e1ee-4ec7-8614-9d7b25f896f0_orig.png'
     };
+    const MANUAL_IMAGE_VERSION = '20260610';
+
+    function normalizeUrlKey(rawUrl) {
+      if (!rawUrl) return '';
+      try {
+        const url = new URL(rawUrl, 'https://www.tendersystems.cz');
+        const host = url.hostname.toLowerCase().replace(/^www\./, '');
+        const path = url.pathname.replace(/\/+$/, '');
+        return `${host}${path}`;
+      } catch (_) {
+        return String(rawUrl)
+          .trim()
+          .toLowerCase()
+          .replace(/^https?:\/\//, '')
+          .replace(/^www\./, '')
+          .split(/[?#]/)[0]
+          .replace(/\/+$/, '');
+      }
+    }
+
+    const MANUAL_IMAGE_OVERRIDES_BY_KEY = Object.fromEntries(
+      Object.entries(MANUAL_IMAGE_OVERRIDES).map(([key, value]) => [normalizeUrlKey(key), value])
+    );
 
     const statusEl = document.getElementById('status');
     const newsListEl = document.getElementById('newsList');
@@ -349,7 +377,11 @@
 
     function getManualImageOverride(link) {
       if (!link) return '';
-      return MANUAL_IMAGE_OVERRIDES[link] || '';
+      const normalizedLink = normalizeUrlKey(link);
+      const image = MANUAL_IMAGE_OVERRIDES_BY_KEY[normalizedLink] || '';
+      if (!image) return '';
+      const separator = image.includes('?') ? '&' : '?';
+      return `${image}${separator}v=${MANUAL_IMAGE_VERSION}`;
     }
 
     function extractText(item) {
