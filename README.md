@@ -33,7 +33,7 @@ Do prvku **Embed Code** ve Weebly vložte:
 ```html
 <iframe
   id="ts-novinky-widget"
-  src="https://agillis24.github.io/ts_aktuality/"
+  src="https://agillis24.github.io/ts_aktuality/?v=0aced73"
   title="Tender systems – novinky"
   width="100%"
   height="1200"
