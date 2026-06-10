@@ -145,7 +145,7 @@
       justify-content: center;
       min-height: 42px;
       padding: 0 16px;
-      border-radius: 999px;
+      border-radius: 10px;
       text-decoration: none;
       font-weight: 700;
       font-size: 14px;
@@ -158,16 +158,16 @@
     .btn:focus { transform: translateY(-1px); }
 
     .btn--primary {
-      background: #fff7ef;
+      background: #fff;
       color: var(--ts-orange);
-      border: 1px solid rgba(245, 130, 0, 0.28);
-      box-shadow: 0 6px 16px rgba(245, 130, 0, 0.10);
+      border: 1px solid var(--ts-orange);
+      box-shadow: none;
     }
 
     .btn--primary:hover,
     .btn--primary:focus {
-      background: #ffe9d3;
-      border-color: rgba(245, 130, 0, 0.42);
+      background: #fff7ef;
+      border-color: var(--ts-orange);
       color: var(--ts-orange);
     }
 
