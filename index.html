@@ -158,9 +158,17 @@
     .btn:focus { transform: translateY(-1px); }
 
     .btn--primary {
-      background: var(--ts-orange);
-      color: #fff;
-      box-shadow: 0 6px 18px rgba(245, 130, 0, 0.22);
+      background: #fff7ef;
+      color: var(--ts-orange);
+      border: 1px solid rgba(245, 130, 0, 0.28);
+      box-shadow: 0 6px 16px rgba(245, 130, 0, 0.10);
+    }
+
+    .btn--primary:hover,
+    .btn--primary:focus {
+      background: #ffe9d3;
+      border-color: rgba(245, 130, 0, 0.42);
+      color: var(--ts-orange);
     }
 
     .btn--secondary {
