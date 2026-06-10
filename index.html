@@ -433,6 +433,13 @@
         mo.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
       }
 
+      // Reacts to pure layout reflow when the available width changes.
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(schedule);
+        ro.observe(document.documentElement);
+        if (document.body) ro.observe(document.body);
+      }
+
       // Initial sync and a few delayed syncs for browser/layout lag.
       adjustIframeHeight(true);
       setTimeout(() => adjustIframeHeight(true), 80);
