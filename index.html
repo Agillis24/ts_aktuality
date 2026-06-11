@@ -34,7 +34,7 @@
     }
 
     .widget__header {
-      margin-bottom: 22px;
+      margin-bottom: 34px;
       text-align: center;
     }
 
@@ -283,7 +283,11 @@
   </div>
 
   <script>
-    const RSS_URL = 'https://www.tendersystems.cz/aktuality/feed';
+    const RSS_SOURCE_URLS = [
+      'https://www.tendersystems.cz/aktuality/feed',
+      'https://www.tendersystems.cz/aktuality/feed/',
+      'https://www.tendersystems.cz/aktuality/feed?x=1'
+    ];
     const PAGE_SIZE = 10;
 
     const statusEl = document.getElementById('status');
@@ -336,6 +340,40 @@
         date: formatDate(item.pubDate || item.published || item.isoDate),
         excerpt: extractText(item)
       };
+    }
+
+    function parseItemDate(item) {
+      const value = item.pubDate || item.published || item.isoDate || '';
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+    }
+
+    async function fetchItemsFromSource(rssUrl) {
+      const endpoint = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl);
+      const res = await fetch(endpoint, { cache: 'no-store' });
+      const data = await res.json();
+
+      if (!res.ok || !data || data.status !== 'ok' || !Array.isArray(data.items)) {
+        throw new Error('Nepodařilo se načíst RSS feed.');
+      }
+
+      return data.items;
+    }
+
+    function mergeAndSortItems(itemGroups) {
+      const byLink = new Map();
+
+      itemGroups.flat().forEach(item => {
+        const link = item.link || item.guid;
+        if (!link) return;
+
+        const existing = byLink.get(link);
+        if (!existing || parseItemDate(item) > parseItemDate(existing)) {
+          byLink.set(link, item);
+        }
+      });
+
+      return [...byLink.values()].sort((a, b) => parseItemDate(b) - parseItemDate(a));
     }
 
     function renderPage(page) {
@@ -445,17 +483,18 @@
 
     async function loadFeed() {
       try {
-        const separator = RSS_URL.includes('?') ? '&' : '?';
-        const cacheBustedRssUrl = `${RSS_URL}${separator}cb=${Date.now()}`;
-        const endpoint = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(cacheBustedRssUrl);
-        const res = await fetch(endpoint);
-        const data = await res.json();
+        const results = await Promise.allSettled(
+          RSS_SOURCE_URLS.map(url => fetchItemsFromSource(url))
+        );
+        const itemGroups = results
+          .filter(result => result.status === 'fulfilled')
+          .map(result => result.value);
 
-        if (!data || data.status !== 'ok' || !Array.isArray(data.items)) {
+        if (!itemGroups.length) {
           throw new Error('Nepodařilo se načíst RSS feed.');
         }
 
-        allItems = data.items.map(normalizeItem);
+        allItems = mergeAndSortItems(itemGroups).map(normalizeItem);
 
         if (!allItems.length) {
           statusEl.textContent = 'Momentálně nejsou k dispozici žádné novinky.';
